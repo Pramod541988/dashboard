@@ -1,6 +1,6 @@
 Flask==2.3.2
 Flask-SocketIO==5.3.4
-numpy==1.24.0
+numpy==1.26.4
 pandas==2.0.3
 requests==2.31.0
 dhanhq==1.0.0
