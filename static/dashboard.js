@@ -1,11 +1,10 @@
 $(document).ready(function () {
-    const BASE_URL = process.env.API_URL || "https://dashboard-cv9t.onrender.com/"; // Set API URL for Render deployment
     let isCopyTradingEnabled = false;
     let selectedOrders = new Set();
     let selectedPositions = new Map();
 
     function fetchData(url, tableId, category, fields) {
-        $.get(`${BASE_URL}${url}`, function (response) {
+        $.get(url, function (response) {
             let tableBody = $(tableId);
             tableBody.empty();
 
@@ -14,12 +13,13 @@ $(document).ready(function () {
                     let rowId = `${category}_${row.order_id || row.symbol}_${row.name}`;
                     let isChecked = selectedPositions.has(rowId) || selectedOrders.has(rowId);
 
-                    let tr = "<tr>";
-                    tr += `<td><input type="checkbox" class="select-item" data-id="${rowId}" data-symbol="${row.symbol}" ${isChecked ? "checked" : ""}></td>`;
+                    let tr = `<tr>
+                        <td><input type="checkbox" class="select-item" data-id="${rowId}" data-symbol="${row.symbol}" ${isChecked ? "checked" : ""}></td>`;
 
                     fields.forEach((field) => {
                         let cellValue = row[field] !== undefined && row[field] !== null ? row[field] : "N/A";
 
+                        // Apply color to Net Profit column
                         if (field === "net_profit") {
                             let colorClass = parseFloat(cellValue) >= 0 ? "text-success" : "text-danger";
                             tr += `<td class="fw-bold ${colorClass}">${cellValue}</td>`;
@@ -32,21 +32,9 @@ $(document).ready(function () {
                     tableBody.append(tr);
                 });
             } else {
-                tableBody.append(`<tr><td colspan="${fields.length + 1}" class="text-center text-muted">No ${category} data available</td></tr>`);
+                tableBody.append(`<tr><td colspan="${fields.length + 1}">No data available</td></tr>`);
             }
         }).fail(function (xhr) {
-            let errorMessage = `Error fetching ${category} data`;
-            if (xhr.responseText) {
-                try {
-                    const errorResponse = JSON.parse(xhr.responseText);
-                    errorMessage = errorResponse.error || errorMessage;
-                } catch (e) {
-                    errorMessage = xhr.responseText;
-                }
-            }
-            let tableBody = $(tableId);
-            tableBody.empty();
-            tableBody.append(`<tr><td colspan="${fields.length + 1}" class="text-center text-danger">${errorMessage}</td></tr>`);
             console.error(`Error fetching ${category} data: `, xhr.responseText);
         });
     }
@@ -61,14 +49,17 @@ $(document).ready(function () {
         fetchData('/get_positions', '#closed_positions_table', 'closed', ['name', 'symbol', 'quantity', 'buy_avg', 'sell_avg', 'net_profit']);
     }
 
-    $('#refreshOrders').click(refreshAll);
-    $('#refreshPositions').click(refreshAll);
+    $('#refreshOrders, #refreshPositions').click(refreshAll);
 
+    // Handle checkbox selection efficiently
     $(document).on('change', '.select-item', function () {
         let rowId = $(this).data("id");
+
         if ($(this).prop("checked")) {
+            selectedOrders.add(rowId);
             selectedPositions.set(rowId, true);
         } else {
+            selectedOrders.delete(rowId);
             selectedPositions.delete(rowId);
         }
     });
@@ -89,11 +80,10 @@ $(document).ready(function () {
         }
 
         $.ajax({
-            url: `${BASE_URL}/cancel_order`,
+            url: '/cancel_order',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ orders: selectedOrderList }),
-            timeout: 15000,
             success: function (response) {
                 alert(response.message.join("\n"));
                 refreshAll();
@@ -124,11 +114,10 @@ $(document).ready(function () {
         }
 
         $.ajax({
-            url: `${BASE_URL}/close_position`,
+            url: '/close_position',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ positions: selectedPositionList }),
-            timeout: 15000,
             success: function (response) {
                 alert(response.message.join("\n"));
                 refreshAll();
@@ -140,6 +129,7 @@ $(document).ready(function () {
         });
     });
 
+    // Auto-refresh every 5 seconds to avoid overwhelming the server
+    setInterval(refreshAll, 5000);
     refreshAll();
-    let refreshInterval = setInterval(refreshAll, 5000); // Reduced interval to 5 sec
 });
