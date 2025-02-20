@@ -1,5 +1,5 @@
 $(document).ready(function () {
-    const BASE_URL = process.env.API_URL || "https://your-app.onrender.com"; // Set API URL for Render deployment
+    const BASE_URL = process.env.API_URL || "https://dashboard-cv9t.onrender.com/"; // Set API URL for Render deployment
     let isCopyTradingEnabled = false;
     let selectedOrders = new Set();
     let selectedPositions = new Map();
