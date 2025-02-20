@@ -3,7 +3,7 @@ $(document).ready(function () {
     let selectedOrders = new Set();
     let selectedPositions = new Map(); // Changed from Set to Map to track multiple selections
 
-    function fetchData(url, tableId, category, fields) {
+function fetchData(url, tableId, category, fields) {
         $.get(url, function (response) {
             let tableBody = $(tableId);
             tableBody.empty();
@@ -32,12 +32,25 @@ $(document).ready(function () {
                     tableBody.append(tr);
                 });
             } else {
-                tableBody.append(`<tr><td colspan="${fields.length + 1}">No data available</td></tr>`);
+                tableBody.append(`<tr><td colspan="${fields.length + 1}" class="text-center text-muted">No ${category} data available</td></tr>`);
             }
         }).fail(function (xhr) {
+            let errorMessage = `Error fetching ${category} data`;
+            if (xhr.responseText) {
+                try {
+                    const errorResponse = JSON.parse(xhr.responseText);
+                    errorMessage = errorResponse.error || errorMessage;
+                } catch (e) {
+                    errorMessage = xhr.responseText;
+                }
+            }
+            let tableBody = $(tableId);
+            tableBody.empty();
+            tableBody.append(`<tr><td colspan="${fields.length + 1}" class="text-center text-danger">${errorMessage}</td></tr>`);
             console.error(`Error fetching ${category} data: `, xhr.responseText);
         });
     }
+
 
     function refreshAll() {
         fetchData('/get_orders', '#pending_orders_table', 'pending', ['name', 'symbol', 'transaction_type', 'quantity', 'price', 'status', 'order_id']);
@@ -128,6 +141,19 @@ $(document).ready(function () {
         });
     });
 
-    setInterval(refreshAll, 1000);  // Auto-refresh every second
+    // Initial data load
+    refreshAll();
+    
+    // Auto-refresh every second with error handling
+    let refreshInterval = setInterval(function() {
+        try {
+            refreshAll();
+        } catch (error) {
+            console.error('Error during refresh:', error);
+            // Optionally display error to user
+            $('#error-alert').text('Error refreshing data: ' + error.message).show().delay(5000).fadeOut();
+        }
+    }, 1000);
+
     refreshAll();
 });
