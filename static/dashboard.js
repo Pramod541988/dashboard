@@ -1,10 +1,11 @@
 $(document).ready(function () {
+    const BASE_URL = process.env.API_URL || "https://your-app.onrender.com"; // Set API URL for Render deployment
     let isCopyTradingEnabled = false;
     let selectedOrders = new Set();
-    let selectedPositions = new Map(); // Changed from Set to Map to track multiple selections
+    let selectedPositions = new Map();
 
-function fetchData(url, tableId, category, fields) {
-        $.get(url, function (response) {
+    function fetchData(url, tableId, category, fields) {
+        $.get(`${BASE_URL}${url}`, function (response) {
             let tableBody = $(tableId);
             tableBody.empty();
 
@@ -16,10 +17,9 @@ function fetchData(url, tableId, category, fields) {
                     let tr = "<tr>";
                     tr += `<td><input type="checkbox" class="select-item" data-id="${rowId}" data-symbol="${row.symbol}" ${isChecked ? "checked" : ""}></td>`;
 
-                    fields.forEach((field, index) => {
+                    fields.forEach((field) => {
                         let cellValue = row[field] !== undefined && row[field] !== null ? row[field] : "N/A";
 
-                        // Apply color to Net Profit column
                         if (field === "net_profit") {
                             let colorClass = parseFloat(cellValue) >= 0 ? "text-success" : "text-danger";
                             tr += `<td class="fw-bold ${colorClass}">${cellValue}</td>`;
@@ -51,7 +51,6 @@ function fetchData(url, tableId, category, fields) {
         });
     }
 
-
     function refreshAll() {
         fetchData('/get_orders', '#pending_orders_table', 'pending', ['name', 'symbol', 'transaction_type', 'quantity', 'price', 'status', 'order_id']);
         fetchData('/get_orders', '#cancelled_orders_table', 'cancelled', ['name', 'symbol', 'transaction_type', 'quantity', 'price', 'status', 'order_id']);
@@ -67,8 +66,6 @@ function fetchData(url, tableId, category, fields) {
 
     $(document).on('change', '.select-item', function () {
         let rowId = $(this).data("id");
-        let symbol = $(this).data("symbol");
-
         if ($(this).prop("checked")) {
             selectedPositions.set(rowId, true);
         } else {
@@ -92,10 +89,11 @@ function fetchData(url, tableId, category, fields) {
         }
 
         $.ajax({
-            url: '/cancel_order',
+            url: `${BASE_URL}/cancel_order`,
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ orders: selectedOrderList }),
+            timeout: 15000,
             success: function (response) {
                 alert(response.message.join("\n"));
                 refreshAll();
@@ -126,10 +124,11 @@ function fetchData(url, tableId, category, fields) {
         }
 
         $.ajax({
-            url: '/close_position',
+            url: `${BASE_URL}/close_position`,
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ positions: selectedPositionList }),
+            timeout: 15000,
             success: function (response) {
                 alert(response.message.join("\n"));
                 refreshAll();
@@ -141,19 +140,6 @@ function fetchData(url, tableId, category, fields) {
         });
     });
 
-    // Initial data load
     refreshAll();
-    
-    // Auto-refresh every second with error handling
-    let refreshInterval = setInterval(function() {
-        try {
-            refreshAll();
-        } catch (error) {
-            console.error('Error during refresh:', error);
-            // Optionally display error to user
-            $('#error-alert').text('Error refreshing data: ' + error.message).show().delay(5000).fadeOut();
-        }
-    }, 1000);
-
-    refreshAll();
+    let refreshInterval = setInterval(refreshAll, 5000); // Reduced interval to 5 sec
 });
