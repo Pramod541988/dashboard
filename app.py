@@ -25,11 +25,12 @@ logging.basicConfig(
 
 # Load client credentials
 def load_clients():
-    df = pd.read_excel("clients.xlsx")
+    df = pd.read_csv("data/access_token.csv")
     df.columns = df.columns.str.strip().str.lower()
     if {"name", "client_id", "access_token"} - set(df.columns):
-        raise ValueError("Excel file must contain 'name', 'client_id', and 'access_token' columns.")
+        raise ValueError("CSV file must contain 'name', 'client_id', and 'access_token' columns.")
     return {row["name"]: {"client_id": row["client_id"], "access_token": row["access_token"]} for _, row in df.iterrows()}
+
 
 clients = load_clients()
 
@@ -164,70 +165,90 @@ def close_position():
 def fetch_orders():
     global categorized_orders
     while True:
-        updated_orders = {key: [] for key in categorized_orders}
-        for client_name, creds in clients.items():
-            try:
-                dhan = dhanhq(creds["client_id"], creds["access_token"])
-                response = dhan.get_order_list()
-                if isinstance(response, str):
-                    response = json.loads(response)
+        try:
+            updated_orders = {key: [] for key in categorized_orders}
+            for client_name, creds in clients.items():
+                try:
+                    dhan = dhanhq(creds["client_id"], creds["access_token"])
+                    response = dhan.get_order_list()
+                    if isinstance(response, str):
+                        response = json.loads(response)
 
-                if "data" in response and isinstance(response["data"], list):
-                    for order in response["data"]:
-                        order_data = {
-                            "name": client_name,
-                            "symbol": order.get("tradingSymbol", "N/A"),
-                            "transaction_type": order.get("transactionType", "N/A"),
-                            "quantity": order.get("quantity", 0),
-                            "price": order.get("price", 0.0),
-                            "status": order.get("orderStatus", "UNKNOWN"),
-                            "order_id": order.get("orderId", "N/A")
-                        }
-                        status = order_data["status"].lower()
-                        if status in updated_orders:
-                            updated_orders[status].append(order_data)
-                        else:
-                            updated_orders["others"].append(order_data)
-            except Exception as e:
-                logging.error("Error fetching orders for %s: %s", client_name, str(e))
-        categorized_orders = updated_orders
-        socketio.emit("update_orders", categorized_orders)
-        time.sleep(1)
+                    if "data" in response and isinstance(response["data"], list):
+                        for order in response["data"]:
+                            order_data = {
+                                "name": client_name,
+                                "symbol": order.get("tradingSymbol", "N/A"),
+                                "transaction_type": order.get("transactionType", "N/A"),
+                                "quantity": order.get("quantity", 0),
+                                "price": order.get("price", 0.0),
+                                "status": order.get("orderStatus", "UNKNOWN"),
+                                "order_id": order.get("orderId", "N/A")
+                            }
+                            status = order_data["status"].lower()
+                            if status in updated_orders:
+                                updated_orders[status].append(order_data)
+                            else:
+                                updated_orders["others"].append(order_data)
+                    else:
+                        logging.error("Invalid response format for %s: %s", client_name, response)
+                except Exception as e:
+                    logging.error("Error fetching orders for %s: %s", client_name, str(e))
+                    logging.debug("Full traceback:", exc_info=True)
+            
+            categorized_orders = updated_orders
+            socketio.emit("update_orders", categorized_orders)
+        except Exception as e:
+            logging.error("Unexpected error in fetch_orders: %s", str(e))
+            logging.debug("Full traceback:", exc_info=True)
+        finally:
+            time.sleep(1)
+
 
 def fetch_positions():
     global categorized_positions
     while True:
-        updated_positions = {"open": [], "closed": []}
-        for client_name, creds in clients.items():
-            try:
-                dhan = dhanhq(creds["client_id"], creds["access_token"])
-                response = dhan.get_positions()
-                if isinstance(response, str):
-                    response = json.loads(response)
+        try:
+            updated_positions = {"open": [], "closed": []}
+            for client_name, creds in clients.items():
+                try:
+                    dhan = dhanhq(creds["client_id"], creds["access_token"])
+                    response = dhan.get_positions()
+                    if isinstance(response, str):
+                        response = json.loads(response)
 
-                if "data" in response and isinstance(response["data"], list):
-                    for position in response["data"]:
-                        net_qty = position.get("netQty", 0)
-                        security_id = position.get("securityId", "N/A")  # Fetch Security ID
-                        position_data = {
-                            "name": client_name,
-                            "symbol": position.get("tradingSymbol", "N/A"),
-                            "security_id": security_id,  # Store security ID for closing
-                            "quantity": net_qty,
-                            "buy_avg": position.get("buyAvg", "N/A"),
-                            "sell_avg": position.get("sellAvg", "N/A"),
-                            "net_profit": position.get("realizedProfit", 0.0) + position.get("unrealizedProfit", 0.0),
-                            "transaction_type": "BUY" if net_qty > 0 else "SELL" if net_qty < 0 else "CLOSED"
-                        }
-                        if net_qty == 0:
-                            updated_positions["closed"].append(position_data)
-                        else:
-                            updated_positions["open"].append(position_data)
-            except Exception as e:
-                logging.error("Error fetching positions for %s: %s", client_name, str(e))
-        categorized_positions = updated_positions
-        socketio.emit("update_positions", categorized_positions)
-        time.sleep(1)
+                    if "data" in response and isinstance(response["data"], list):
+                        for position in response["data"]:
+                            net_qty = position.get("netQty", 0)
+                            security_id = position.get("securityId", "N/A")  # Fetch Security ID
+                            position_data = {
+                                "name": client_name,
+                                "symbol": position.get("tradingSymbol", "N/A"),
+                                "security_id": security_id,  # Store security ID for closing
+                                "quantity": net_qty,
+                                "buy_avg": position.get("buyAvg", "N/A"),
+                                "sell_avg": position.get("sellAvg", "N/A"),
+                                "net_profit": position.get("realizedProfit", 0.0) + position.get("unrealizedProfit", 0.0),
+                                "transaction_type": "BUY" if net_qty > 0 else "SELL" if net_qty < 0 else "CLOSED"
+                            }
+                            if net_qty == 0:
+                                updated_positions["closed"].append(position_data)
+                            else:
+                                updated_positions["open"].append(position_data)
+                    else:
+                        logging.error("Invalid response format for %s: %s", client_name, response)
+                except Exception as e:
+                    logging.error("Error fetching positions for %s: %s", client_name, str(e))
+                    logging.debug("Full traceback:", exc_info=True)
+            
+            categorized_positions = updated_positions
+            socketio.emit("update_positions", categorized_positions)
+        except Exception as e:
+            logging.error("Unexpected error in fetch_positions: %s", str(e))
+            logging.debug("Full traceback:", exc_info=True)
+        finally:
+            time.sleep(1)
+
 
 if __name__ == "__main__":
     logging.info("Flask app is running...")
