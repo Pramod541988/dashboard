@@ -4,14 +4,14 @@ import time
 import threading
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
-from flask_cors import CORS  # ✅ Import CORS
+from flask_cors import CORS
 from dhanhq import dhanhq
 import os
 import logging
 from datetime import datetime
 from Copy_Trading_19_12_24 import synchronize_orders
 
-# Logging (stdout for Render)
+# Logging (stdout for Railway)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -29,7 +29,7 @@ def load_clients():
 clients = load_clients()
 
 app = Flask(__name__)
-CORS(app)  # ✅ Enable CORS for all routes
+CORS(app)  # ✅ Enable CORS globally
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 categorized_orders = {"pending": [], "traded": [], "rejected": [], "cancelled": [], "others": []}
@@ -58,6 +58,7 @@ def index():
 
 @app.route("/get_orders")
 def get_orders():
+    logging.info("Returning Orders: %s", categorized_orders)  # ✅ Debugging
     return jsonify(categorized_orders)
 
 @app.route("/get_positions")
@@ -90,9 +91,18 @@ def fetch_orders():
             try:
                 dhan = dhanhq(creds["client_id"], creds["access_token"])
                 response = dhan.get_order_list()
+
+                # ✅ Debugging Log: Print API response
+                logging.info("Raw API Response for %s: %s", client_name, response)
+
                 if isinstance(response, str):
                     response = json.loads(response)
 
+                # ✅ Check for Authentication Errors
+                if "status" in response and response["status"] != "success":
+                    logging.error("Dhan API Error for %s: %s", client_name, response)
+
+                # ✅ Process Orders if Data Exists
                 if "data" in response and isinstance(response["data"], list):
                     for order in response["data"]:
                         order_data = {
@@ -109,9 +119,12 @@ def fetch_orders():
                             updated_orders[status].append(order_data)
                         else:
                             updated_orders["others"].append(order_data)
+
             except Exception as e:
                 logging.error("Error fetching orders for %s: %s", client_name, str(e))
+
         categorized_orders = updated_orders
+        logging.info("Updated Orders: %s", categorized_orders)  # ✅ Debugging
         socketio.emit("update_orders", categorized_orders)
         time.sleep(1)
 
@@ -123,13 +136,17 @@ def fetch_positions():
             try:
                 dhan = dhanhq(creds["client_id"], creds["access_token"])
                 response = dhan.get_positions()
+
+                # ✅ Debugging Log: Print API response
+                logging.info("Raw API Positions for %s: %s", client_name, response)
+
                 if isinstance(response, str):
                     response = json.loads(response)
 
                 if "data" in response and isinstance(response["data"], list):
                     for position in response["data"]:
                         net_qty = position.get("netQty", 0)
-                        security_id = position.get("securityId", "N/A")  # Fetch Security ID
+                        security_id = position.get("securityId", "N/A")
                         position_data = {
                             "name": client_name,
                             "symbol": position.get("tradingSymbol", "N/A"),
@@ -144,9 +161,12 @@ def fetch_positions():
                             updated_positions["closed"].append(position_data)
                         else:
                             updated_positions["open"].append(position_data)
+
             except Exception as e:
                 logging.error("Error fetching positions for %s: %s", client_name, str(e))
+
         categorized_positions = updated_positions
+        logging.info("Updated Positions: %s", categorized_positions)  # ✅ Debugging
         socketio.emit("update_positions", categorized_positions)
         time.sleep(1)
 
