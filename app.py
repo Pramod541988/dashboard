@@ -92,7 +92,7 @@ def fetch_orders():
                 dhan = dhanhq(creds["client_id"], creds["access_token"])
                 response = dhan.get_order_list()
 
-                # ✅ Debugging Log: Print API response
+                # ✅ Debugging: Log API response
                 logging.info("Raw API Response for %s: %s", client_name, response)
 
                 if isinstance(response, str):
@@ -103,7 +103,7 @@ def fetch_orders():
                     logging.error("Dhan API Error for %s: %s", client_name, response)
 
                 # ✅ Process Orders if Data Exists
-                if "data" in response and isinstance(response["data"], list):
+                if "data" in response and isinstance(response["data"], list) and response["data"]:
                     for order in response["data"]:
                         order_data = {
                             "name": client_name,
@@ -143,7 +143,7 @@ def fetch_positions():
                 if isinstance(response, str):
                     response = json.loads(response)
 
-                if "data" in response and isinstance(response["data"], list):
+                if "data" in response and isinstance(response["data"], list) and response["data"]:
                     for position in response["data"]:
                         net_qty = position.get("netQty", 0)
                         security_id = position.get("securityId", "N/A")
