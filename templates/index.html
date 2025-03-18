@@ -34,7 +34,7 @@
     <div class="container">
         <h1 class="text-center">Dhan Trading Dashboard</h1>
 
-        <!-- Tabs -->
+        <!-- Tabs for Orders, Positions & Copy Trading -->
         <ul class="nav nav-tabs" id="dashboardTabs">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#orders">Orders</a>
@@ -54,6 +54,15 @@
                     <button class="btn btn-primary" id="refreshOrders">Refresh Orders</button>
                     <button class="btn btn-danger" id="cancelOrder">Cancel Order</button>
                 </div>
+
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#pending_orders">Pending</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#traded_orders">Traded</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#rejected_orders">Rejected</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#cancelled_orders">Cancelled</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#others_orders">Others</a></li>
+                </ul>
+
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="pending_orders">
                         <table class="table table-bordered">
@@ -61,6 +70,38 @@
                                 <tr><th>Select</th><th>Name</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Order ID</th></tr>
                             </thead>
                             <tbody id="pending_orders_table"></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="traded_orders">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr><th>Select</th><th>Name</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Order ID</th></tr>
+                            </thead>
+                            <tbody id="traded_orders_table"></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="rejected_orders">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr><th>Select</th><th>Name</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Order ID</th></tr>
+                            </thead>
+                            <tbody id="rejected_orders_table"></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="cancelled_orders">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr><th>Select</th><th>Name</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Order ID</th></tr>
+                            </thead>
+                            <tbody id="cancelled_orders_table"></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="others_orders">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr><th>Select</th><th>Name</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Order ID</th></tr>
+                            </thead>
+                            <tbody id="others_orders_table"></tbody>
                         </table>
                     </div>
                 </div>
@@ -72,6 +113,12 @@
                     <button class="btn btn-primary" id="refreshPositions">Refresh Positions</button>
                     <button class="btn btn-danger" id="closePosition">Close Position</button>
                 </div>
+
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#open_positions">Open</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#closed_positions">Closed</a></li>
+                </ul>
+
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="open_positions">
                         <table class="table table-bordered">
@@ -81,6 +128,16 @@
                                 </tr>
                             </thead>
                             <tbody id="open_positions_table"></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade" id="closed_positions">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Select</th><th>Name</th><th>Symbol</th><th>Quantity</th><th>Buy Avg</th><th>Sell Avg</th><th>Net Profit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="closed_positions_table"></tbody>
                         </table>
                     </div>
                 </div>
@@ -115,6 +172,7 @@
         $(document).ready(function () {
             let isCopyTradingEnabled = false;
 
+            // Toggle Copy Trading
             $('#toggleCopyTrading').change(function () {
                 isCopyTradingEnabled = $(this).is(':checked');
                 $.post('/toggle_copy_trading', { enabled: isCopyTradingEnabled }, function (response) {
@@ -122,6 +180,7 @@
                 });
             });
 
+            // Refresh Copy Trading Trades
             $('#refreshCopyTrading').click(function () {
                 $.get('/get_copy_trading_trades', function (trades) {
                     let tableBody = $('#copy_trading_table');
