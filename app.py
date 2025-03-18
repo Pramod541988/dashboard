@@ -4,6 +4,7 @@ import time
 import threading
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
+from flask_cors import CORS  # ✅ Added CORS
 from dhanhq import dhanhq
 import os
 import logging
@@ -28,6 +29,7 @@ def load_clients():
 clients = load_clients()
 
 app = Flask(__name__)
+CORS(app)  # ✅ Enable CORS for all routes
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 categorized_orders = {"pending": [], "traded": [], "rejected": [], "cancelled": [], "others": []}
@@ -55,14 +57,17 @@ def index():
     return render_template("index.html")
 
 @app.route("/get_orders")
+@CORS()  # ✅ CORS enabled for this specific API route
 def get_orders():
     return jsonify(categorized_orders)
 
 @app.route("/get_positions")
+@CORS()  # ✅ CORS enabled for this specific API route
 def get_positions():
     return jsonify(categorized_positions)
 
 @app.route("/toggle_copy_trading", methods=["POST"])
+@CORS()  # ✅ CORS enabled for this specific API route
 def toggle_copy_trading():
     global copy_trading_enabled
     data = request.json
@@ -76,6 +81,7 @@ def toggle_copy_trading():
     return jsonify({"message": message})
 
 @app.route("/get_copy_trading_status")
+@CORS()  # ✅ CORS enabled for this specific API route
 def get_copy_trading_status():
     status = "Running" if copy_trading_running else "Stopped"
     return jsonify({"status": status})
