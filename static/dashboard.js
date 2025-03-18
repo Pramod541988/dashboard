@@ -1,7 +1,5 @@
 $(document).ready(function () {
-    let isCopyTradingEnabled = false;
-    let selectedOrders = new Set();
-    let selectedPositions = new Map();
+    let selectedPositions = {};
 
     function fetchData(url, tableId, category, fields) {
         $.get(url, function (response) {
@@ -10,25 +8,47 @@ $(document).ready(function () {
 
             if (response[category] && response[category].length > 0) {
                 response[category].forEach(row => {
-                    let rowId = `${category}_${row.order_id || row.symbol}_${row.name}`;
-                    let isChecked = selectedPositions.has(rowId) || selectedOrders.has(rowId);
+                    let tr = $("<tr>");
+                    let rowId = `${row["name"]}-${row["symbol"]}-${row["order_id"]}`; // Unique row ID based on Name + Symbol + Order ID
 
-                    let tr = `<tr>
-                        <td><input type="checkbox" class="select-item" data-id="${rowId}" data-symbol="${row.symbol}" ${isChecked ? "checked" : ""}></td>`;
+                    // Checkbox for individual selection
+                    let checkbox = $("<input>")
+                        .attr("type", "checkbox")
+                        .addClass("select-item")
+                        .attr("data-row-id", rowId);
 
-                    fields.forEach((field) => {
-                        let cellValue = row[field] !== undefined && row[field] !== null ? row[field] : "N/A";
+                    // Restore selection state
+                    if (selectedPositions[rowId]) {
+                        checkbox.prop("checked", true);
+                    }
 
-                        // Apply color to Net Profit column
-                        if (field === "net_profit") {
-                            let colorClass = parseFloat(cellValue) >= 0 ? "text-success" : "text-danger";
-                            tr += `<td class="fw-bold ${colorClass}">${cellValue}</td>`;
+                    checkbox.change(function () {
+                        if (this.checked) {
+                            selectedPositions[rowId] = true;
                         } else {
-                            tr += `<td>${cellValue}</td>`;
+                            delete selectedPositions[rowId];
                         }
                     });
 
-                    tr += "</tr>";
+                    tr.append($("<td>").append(checkbox));
+
+                    fields.forEach(field => {
+                        let cell = $("<td>").text(row[field] !== undefined && row[field] !== null ? row[field] : "N/A");
+
+                        // Highlight Net Profit column with color
+                        if (field === "net_profit") {
+                            let profitValue = parseFloat(row[field]);
+                            if (!isNaN(profitValue)) {
+                                cell.css({
+                                    "font-weight": "bold",
+                                    "color": profitValue < 0 ? "red" : "green"
+                                });
+                            }
+                        }
+
+                        tr.append(cell);
+                    });
+
                     tableBody.append(tr);
                 });
             } else {
@@ -49,32 +69,22 @@ $(document).ready(function () {
         fetchData('/get_positions', '#closed_positions_table', 'closed', ['name', 'symbol', 'quantity', 'buy_avg', 'sell_avg', 'net_profit']);
     }
 
-    $('#refreshOrders, #refreshPositions').click(refreshAll);
-
-    // Handle checkbox selection efficiently
-    $(document).on('change', '.select-item', function () {
-        let rowId = $(this).data("id");
-
-        if ($(this).prop("checked")) {
-            selectedOrders.add(rowId);
-            selectedPositions.set(rowId, true);
-        } else {
-            selectedOrders.delete(rowId);
-            selectedPositions.delete(rowId);
-        }
-    });
+    $('#refreshOrders').click(refreshAll);
+    $('#refreshPositions').click(refreshAll);
 
     $('#cancelOrder').click(function () {
-        let selectedOrderList = Array.from(selectedOrders).map(id => {
-            let row = $(`input[data-id='${id}']`).closest('tr');
-            return {
-                name: row.find('td:eq(1)').text().trim(),
-                symbol: row.find('td:eq(2)').text().trim(),
+        let selectedOrders = [];
+        $('#pending_orders_table .select-item:checked').each(function () {
+            let row = $(this).closest('tr');
+            let orderData = {
+                name: row.find('td:eq(1)').text(),
+                symbol: row.find('td:eq(2)').text(),
                 order_id: row.find('td:eq(7)').text().trim()
             };
+            selectedOrders.push(orderData);
         });
 
-        if (selectedOrderList.length === 0) {
+        if (selectedOrders.length === 0) {
             alert("No orders selected for cancellation.");
             return;
         }
@@ -83,7 +93,7 @@ $(document).ready(function () {
             url: '/cancel_order',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ orders: selectedOrderList }),
+            data: JSON.stringify({ orders: selectedOrders }),
             success: function (response) {
                 alert(response.message.join("\n"));
                 refreshAll();
@@ -96,19 +106,22 @@ $(document).ready(function () {
     });
 
     $('#closePosition').click(function () {
-        let selectedPositionList = Array.from(selectedPositions.keys()).map(id => {
-            let row = $(`input[data-id='${id}']`).closest('tr');
+        let selectedPositionsArray = [];
+        $('#open_positions_table .select-item:checked').each(function () {
+            let row = $(this).closest('tr');
             let quantity = Math.abs(parseInt(row.find('td:eq(3)').text()));
 
-            return {
+            let positionData = {
                 name: row.find('td:eq(1)').text().trim(),
                 symbol: row.find('td:eq(2)').text().trim(),
                 quantity: quantity,
                 transaction_type: parseInt(row.find('td:eq(3)').text()) > 0 ? "SELL" : "BUY"
             };
+
+            selectedPositionsArray.push(positionData);
         });
 
-        if (selectedPositionList.length === 0) {
+        if (selectedPositionsArray.length === 0) {
             alert("No positions selected for closing.");
             return;
         }
@@ -117,7 +130,7 @@ $(document).ready(function () {
             url: '/close_position',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ positions: selectedPositionList }),
+            data: JSON.stringify({ positions: selectedPositionsArray }),
             success: function (response) {
                 alert(response.message.join("\n"));
                 refreshAll();
@@ -129,7 +142,50 @@ $(document).ready(function () {
         });
     });
 
-    // Auto-refresh every 5 seconds to avoid overwhelming the server
-    setInterval(refreshAll, 5000);
+    // Copy Trading Enable/Disable Logic
+    $('#toggleCopyTrading').change(function () {
+        isCopyTradingEnabled = $(this).is(':checked');
+        $('#refreshCopyTrading').prop('disabled', !isCopyTradingEnabled);
+
+        $.ajax({
+            url: '/toggle_copy_trading',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ enabled: isCopyTradingEnabled }),
+            success: function (response) {
+                alert(response.message);
+            },
+            error: function (xhr) {
+                alert("Failed to toggle Copy Trading: " + xhr.responseText);
+                console.error("Error:", xhr.responseText);
+            }
+        });
+    });
+
+    $('#refreshCopyTrading').click(function () {
+        if (!isCopyTradingEnabled) {
+            alert("Copy Trading is disabled.");
+            return;
+        }
+
+        $.get('/get_copy_trading_logs', function (logs) {
+            let tableBody = $('#copy_trading_table');
+            tableBody.empty();
+
+            if (logs && logs.length > 0) {
+                logs.forEach(log => {
+                    let row = `<tr><td>${log.time}</td><td>${log.account}</td><td>${log.message}</td></tr>`;
+                    tableBody.append(row);
+                });
+            } else {
+                tableBody.append('<tr><td colspan="3">No logs available</td></tr>');
+            }
+        }).fail(function (xhr) {
+            console.error("Failed to fetch copy trading logs:", xhr.responseText);
+        });
+    });
+
+    // Auto-refresh existing data every second
+    setInterval(refreshAll, 1000);
     refreshAll();
 });
