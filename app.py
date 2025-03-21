@@ -97,6 +97,10 @@ def fetch_orders():
             try:
                 dhan = dhanhq(creds["client_id"], creds["access_token"])
                 response = dhan.get_order_list()
+                
+                # Debugging API Response
+                logging.info("API Response for orders (%s): %s", client_name, response)
+
                 if isinstance(response, str):
                     response = json.loads(response)
 
@@ -116,11 +120,15 @@ def fetch_orders():
                             updated_orders[status].append(order_data)
                         else:
                             updated_orders["others"].append(order_data)
+                else:
+                    logging.warning("No data returned for orders of %s", client_name)
+
             except Exception as e:
                 logging.error("Error fetching orders for %s: %s", client_name, str(e))
+        
         categorized_orders = updated_orders
         socketio.emit("update_orders", categorized_orders)
-        time.sleep(1)
+        time.sleep(5)  # Adding delay to avoid API rate limits
 
 def fetch_positions():
     global categorized_positions
@@ -130,6 +138,10 @@ def fetch_positions():
             try:
                 dhan = dhanhq(creds["client_id"], creds["access_token"])
                 response = dhan.get_positions()
+                
+                # Debugging API Response
+                logging.info("API Response for positions (%s): %s", client_name, response)
+
                 if isinstance(response, str):
                     response = json.loads(response)
 
@@ -149,11 +161,15 @@ def fetch_positions():
                             updated_positions["closed"].append(position_data)
                         else:
                             updated_positions["open"].append(position_data)
+                else:
+                    logging.warning("No data returned for positions of %s", client_name)
+
             except Exception as e:
                 logging.error("Error fetching positions for %s: %s", client_name, str(e))
+        
         categorized_positions = updated_positions
         socketio.emit("update_positions", categorized_positions)
-        time.sleep(1)
+        time.sleep(5)  # Adding delay to avoid API rate limits
 
 if __name__ == "__main__":
     logging.info("Starting Flask app...")
