@@ -22,7 +22,7 @@ logging.basicConfig(
 def load_clients():
     df = pd.read_excel("clients.xlsx")
     df.columns = df.columns.str.strip().str.lower()
-    if {"name", "client_id", "access_token"} - set(df.columns):
+    if {"Name", "Client_ID", "Access_Token"} - set(df.columns):
         raise ValueError("Excel file must contain 'name', 'client_id', and 'access_token' columns.")
     return {row["name"]: {"client_id": row["client_id"], "access_token": row["access_token"]} for _, row in df.iterrows()}
 
